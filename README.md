@@ -6,7 +6,7 @@ This project is a **Next.js + Tailwind CSS + Playwright** based web scraping too
 
 ---
 
-## 🚀 Features  
+ 🚀 Features  
 
 ✅ **Authentication** – Secure Sign Up, Sign In, and Logout functionality.  
 ✅ **DOM Scraping** – Enter a website URL, and the full DOM elements are scraped and displayed.  
@@ -17,7 +17,7 @@ This project is a **Next.js + Tailwind CSS + Playwright** based web scraping too
 
 ---
 
-## 🛠️ Tech Stack  
+🛠️ Tech Stack  
 
 - **Frontend:** Next.js, Tailwind CSS  
 - **Backend:** Next.js API routes  
@@ -35,14 +35,14 @@ This project is a **Next.js + Tailwind CSS + Playwright** based web scraping too
    cd web-scraping-project
 ````
 
- **Install Dependencies**
+ Install Dependencies
 
    ```bash
    npm install
    ```
 
 
- **Run the Development Server**
+ Run the Development Server
 
    ```bash
    npm run dev
@@ -52,32 +52,32 @@ This project is a **Next.js + Tailwind CSS + Playwright** based web scraping too
 
 ---
 
-## 📖 Usage
+📖 Usage
 
-### 🔑 Authentication
+ 🔑 Authentication
 
 * Create an account (Sign Up).
 * Log in to access scraping tools.
 * Logout anytime from the Navbar.
 
-### 🕸️ DOM Scraping (Home Page)
+ 🕸️ DOM Scraping (Home Page)
 
 * Enter a website URL.
 * The full DOM elements are scraped and shown.
 
-### 🎯 Selector Helper
+ 🎯 Selector Helper
 
 * Navigate to **Selector Helper Mode**.
 * Apply filters to extract specific elements.
 
-### 🖱️ Mouse Mode
+ 🖱️ Mouse Mode
 
 * Enter a website URL.
 * Website opens in interactive mode.
 * Hover or click on elements → they are highlighted & selected.
 * Selected elements appear in the dashboard.
 
-### 📑 Export Data
+ 📑 Export Data
 
 * All scraped/filtered/selected data can be exported as a **CSV file**.
 
