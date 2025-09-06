@@ -1,8 +1,5 @@
-Got it 👍. Neeche ek **professionally structured README.md** file bana kar de raha hoon jo GitHub ke liye perfect hogi. Tum direct copy paste karke apne repo me dal sakte ho:
 
----
 
-```markdown
 # 🌐 Web Scraping Project  
 
 This project is a **Next.js + Tailwind CSS + Playwright** based web scraping tool that allows users to scrape website data with multiple modes of interaction. It provides authentication, DOM scraping, filtering, and element selection with an option to export results in **CSV format**.  
