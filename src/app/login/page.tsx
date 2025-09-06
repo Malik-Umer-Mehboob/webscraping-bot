@@ -50,7 +50,7 @@ const LoginPage: React.FC = () => {
       } else {
         setError(data.message || 'Login failed');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.message || 'An unexpected error occurred');
     } finally {
       setLoading(false);

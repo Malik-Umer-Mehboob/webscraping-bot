@@ -12,7 +12,7 @@ declare module "next-auth" {
     };
   }
 
-  interface JWT {}
+  // interface JWT {}
 }
 
 const handler = NextAuth({

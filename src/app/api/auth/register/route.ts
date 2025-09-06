@@ -117,7 +117,7 @@ export async function POST(request: Request) {
       user: userResponse
     }, { status: 201 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Registration error:', error);
 
     if (error instanceof z.ZodError) {
@@ -163,7 +163,7 @@ export async function GET(request: Request) {
       }, { status: 400 });
     }
 
-    const query: any = {};
+    const query: unknown = {};
     if (email) query.email = email.toLowerCase();
     if (username) query.username = username.toLowerCase();
 
@@ -175,7 +175,7 @@ export async function GET(request: Request) {
       field: email ? 'email' : 'username'
     }, { status: 200 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Availability check error:', error);
     return NextResponse.json({ 
       message: 'Internal server error' 

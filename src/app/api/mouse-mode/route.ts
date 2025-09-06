@@ -14,6 +14,8 @@ interface CustomWindow extends Window {
   onClick?: (e: MouseEvent) => void;
   onKeyDown?: (e: KeyboardEvent) => void;
   sendSelectedData: (elements: { text: string; tag: string }[]) => void;
+  setEscapePressed: () => void;
+  setEnterPressed: () => void; // Added for completeness
 }
 
 export async function POST(req: NextRequest) {
@@ -37,13 +39,23 @@ export async function POST(req: NextRequest) {
     await page.exposeFunction("sendSelectedData", async (elements: { text: string; tag: string }[]) => {
       console.log("Received elements:", elements);
       sessionData[sessionId] = [...sessionData[sessionId], ...elements];
-      console.log("Current sessionData:", sessionData[sessionId]); // Debug log
+      console.log("Current sessionData:", sessionData[sessionId]);
+    });
+
+    // Expose function to set escape flag
+    await page.exposeFunction("setEscapePressed", () => {
+      console.log("Escape key detected, setting escapePressed");
+    });
+
+    // Expose function to set enter flag (for completeness, though not used for session termination)
+    await page.exposeFunction("setEnterPressed", () => {
+      console.log("Enter key detected, setting enterPressed");
     });
 
     // Inject Mouse Mode script
     const injectMouseMode = async () => {
       await page.evaluate(() => {
-        const win = window as unknown as CustomWindow;
+        const win = window as CustomWindow;
 
         // Cleanup function to remove listeners and reset styles
         const cleanup = (preserveSelected: boolean = true) => {
@@ -115,7 +127,7 @@ export async function POST(req: NextRequest) {
             if (win.geminiOriginalBorder) target.style.border = win.geminiOriginalBorder;
             else target.style.removeProperty("border");
             if (win.geminiOriginalCursor) target.style.cursor = win.geminiOriginalCursor;
-            else target.style.removeProperty("cursor");
+            else win.geminiLastHighlighted.style.removeProperty("cursor");
             win.geminiLastHighlighted = null;
             win.geminiOriginalBorder = null;
             win.geminiOriginalCursor = null;
@@ -151,27 +163,24 @@ export async function POST(req: NextRequest) {
           win.sendSelectedData([{ text, tag }]);
         };
 
-       const onKeyDown = (e: KeyboardEvent) => {
-  if (e.key === "Enter") {
-    console.log("Enter pressed, finalizing session");
-    // Selected elements ki list ko reset kar dein
-    document.querySelectorAll(".gemini-selected-element").forEach(el => {
-      el.style.removeProperty("border");
-      el.classList.remove("gemini-selected-element");
-    });
-    // Cleanup karein, listeners ko hatayein
-    cleanup(false);
-    // Backend ko bata dein k session end ho gaya hai
-    win.sendSelectedData([]);
-    // Browser ko close karne k liye ye function call karein
-    (window as any).setEnterPressed(); // Naya function call
-  } else if (e.key === "Escape") {
-    console.log("Escape pressed, finalizing session");
-    cleanup(false);
-    win.sendSelectedData([]);
-    (window as any).setEscapePressed();
-  }
-};
+        const onKeyDown = (e: KeyboardEvent) => {
+          if (e.key === "Enter") {
+            console.log("Enter pressed, resetting styles");
+            // Reset styles for current page
+            document.querySelectorAll(".gemini-selected-element").forEach(el => {
+              el.style.removeProperty("border");
+              el.classList.remove("gemini-selected-element");
+            });
+            cleanup(true); // Preserve session
+            // Notify frontend to update UI
+            win.sendSelectedData([]); // Empty array to signal UI update
+          } else if (e.key === "Escape") {
+            console.log("Escape pressed, finalizing session");
+            cleanup(false);
+            win.sendSelectedData([]);
+            win.setEscapePressed();
+          }
+        };
 
         // Store event listeners in window
         win.onMouseOver = onMouseOver;
@@ -233,7 +242,7 @@ export async function POST(req: NextRequest) {
       try {
         console.log(`Navigation detected to ${frameUrl}, cleaning up and re-injecting script`);
         await page.evaluate(() => {
-          const win = window as unknown as CustomWindow;
+          const win = window as CustomWindow;
           if (win.geminiLastHighlighted) {
             if (win.geminiOriginalBorder) win.geminiLastHighlighted.style.border = win.geminiOriginalBorder;
             else win.geminiLastHighlighted.style.removeProperty("border");
@@ -257,41 +266,21 @@ export async function POST(req: NextRequest) {
     });
 
     // Wait for user to press Escape to finalize
-    // POST function k andar, `page.exposeFunction` k baad
-// Wait for user to press Escape or Enter to finalize
-let escapePressed = false;
-let enterPressed = false;
-await page.exposeFunction("setEscapePressed", () => {
-  escapePressed = true;
-});
-await page.exposeFunction("setEnterPressed", () => {
-  enterPressed = true;
-});
+    let escapePressed = false;
+    await page.exposeFunction("setEscapePressed", () => {
+      escapePressed = true;
+    });
 
-await page.evaluate(() => {
-  const win = window as unknown as CustomWindow;
-  const originalKeyDown = win.onKeyDown;
-  win.onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      console.log("Escape key detected, setting escapePressed");
-      (window as any).setEscapePressed();
-    } else if (e.key === "Enter") { // Enter key k liye naya block
-      console.log("Enter key detected, setting enterPressed");
-      (window as any).setEnterPressed();
+    // Note: setEnterPressed is exposed but not used for session termination
+    while (!escapePressed) {
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
-    originalKeyDown?.(e);
-  };
-});
 
-while (!escapePressed && !enterPressed) {
-  await new Promise(resolve => setTimeout(resolve, 100));
-}
-
-console.log("Session ended, final sessionData:", sessionData[sessionId]);
-const selectedElements = sessionData[sessionId];
-delete sessionData[sessionId]; // Clean up session data
-await browser.close();
-return NextResponse.json({ selectedElements, sessionId });
+    console.log("Escape pressed, final sessionData:", sessionData[sessionId]);
+    const selectedElements = sessionData[sessionId];
+    delete sessionData[sessionId]; // Clean up session data
+    if (browser) await browser.close();
+    return NextResponse.json({ selectedElements, sessionId });
   } catch (err) {
     console.error("Mouse Mode failed:", err);
     if (browser) await browser.close();
@@ -299,7 +288,6 @@ return NextResponse.json({ selectedElements, sessionId });
   }
 }
 
-// Endpoint for real-time updates
 export async function GET(req: NextRequest) {
   try {
     const sessionId = req.nextUrl.searchParams.get("sessionId") || "default";
