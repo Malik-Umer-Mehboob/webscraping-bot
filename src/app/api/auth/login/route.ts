@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/utils/db';
 import User from '@/models/User';
-import { z } from 'zod';
+import { z, ZodError } from 'zod';
 
-// Enhanced validation schema
+// ----------------------
+// Zod validation schema
+// ----------------------
 const loginSchema = z.object({
   email: z.string()
     .email('Invalid email address')
@@ -14,131 +16,137 @@ const loginSchema = z.object({
     .max(100, 'Password is too long')
 });
 
+// ----------------------
 // Rate limiting setup
-const loginAttempts = new Map();
+// ----------------------
+interface LoginAttempt {
+  count: number;
+  lastAttempt: number;
+}
+const loginAttempts = new Map<string, LoginAttempt>();
 const MAX_ATTEMPTS = 10;
 const LOCKOUT_TIME = 15 * 60 * 1000; // 15 minutes
 
+// ----------------------
+// POST handler
+// ----------------------
 export async function POST(request: Request) {
   await dbConnect();
 
   try {
-    const body = await request.json();
+    const body: unknown = await request.json();
     const ip = request.headers.get('x-forwarded-for') || 'unknown';
     const now = Date.now();
 
-    // Check for rate limiting
+    // ----------------------
+    // Rate limiting check
+    // ----------------------
     const attempts = loginAttempts.get(ip) || { count: 0, lastAttempt: 0 };
     if (attempts.count >= MAX_ATTEMPTS && now - attempts.lastAttempt < LOCKOUT_TIME) {
       return NextResponse.json(
-        { message: 'Too many login attempts. Please try again later.' }, 
+        { message: 'Too many login attempts. Please try again later.' },
         { status: 429 }
       );
     }
 
-    // Validate input
-    const { email, password } = loginSchema.parse(body);
-
-    // Find user with password field included
-    const user = await User.findOne({ email }).select('+password');
-    if (!user) {
-      // Increment failed attempts
-      loginAttempts.set(ip, { 
-        count: attempts.count + 1, 
-        lastAttempt: now 
-      });
-      
-      return NextResponse.json(
-        { message: 'Invalid credentials' }, 
-        { status: 401 }
-      );
+    // ----------------------
+    // Input validation
+    // ----------------------
+    let email: string;
+    let password: string;
+    try {
+      const parsed = loginSchema.parse(body);
+      email = parsed.email;
+      password = parsed.password;
+    } catch (err) {
+      if (err instanceof ZodError) {
+        return NextResponse.json({
+          message: 'Validation Error',
+          errors: err.errors.map(e => ({
+            field: e.path[0],
+            message: e.message
+          }))
+        }, { status: 400 });
+      }
+      throw err; // Unexpected error
     }
 
-    // Check if account is locked
+    // ----------------------
+    // Find user
+    // ----------------------
+    const user = await User.findOne({ email }).select('+password');
+    if (!user) {
+      loginAttempts.set(ip, {
+        count: attempts.count + 1,
+        lastAttempt: now
+      });
+
+      return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
+    }
+
+    // ----------------------
+    // Account lock check
+    // ----------------------
     if (user.lockedUntil && user.lockedUntil > new Date()) {
       return NextResponse.json(
-        { message: 'Account temporarily locked. Please try again later.' }, 
+        { message: 'Account temporarily locked. Please try again later.' },
         { status: 423 }
       );
     }
 
-    // Verify password
+    // ----------------------
+    // Password verification
+    // ----------------------
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      // Increment failed attempts
       user.failedLoginAttempts += 1;
-      
-      // Lock account after too many failed attempts
+
       if (user.failedLoginAttempts >= MAX_ATTEMPTS) {
         user.lockedUntil = new Date(Date.now() + LOCKOUT_TIME);
         await user.save();
-        
+
         return NextResponse.json(
-          { message: 'Account locked due to too many failed attempts. Please try again later.' }, 
+          { message: 'Account locked due to too many failed attempts. Please try again later.' },
           { status: 423 }
         );
       }
-      
+
       await user.save();
-      
-      // Update rate limiting
-      loginAttempts.set(ip, { 
-        count: attempts.count + 1, 
-        lastAttempt: now 
+
+      loginAttempts.set(ip, {
+        count: attempts.count + 1,
+        lastAttempt: now
       });
-      
-      return NextResponse.json(
-        { message: 'Invalid credentials' }, 
-        { status: 401 }
-      );
+
+      return NextResponse.json({ message: 'Invalid credentials' }, { status: 401 });
     }
 
-    // Reset failed attempts on successful login
+    // ----------------------
+    // Successful login
+    // ----------------------
     user.failedLoginAttempts = 0;
     user.lockedUntil = null;
     user.lastLogin = new Date();
     await user.save();
 
-    // Return user data (excluding sensitive information)
     const userData = {
       id: user._id.toString(),
       username: user.username,
       email: user.email,
-      name: user.name,
+      name: user.name
     };
 
-    return NextResponse.json(
-      { 
-        message: 'Login successful', 
-        user: userData,
-      }, 
-      { status: 200 }
-    );
+    return NextResponse.json({ message: 'Login successful', user: userData }, { status: 200 });
 
   } catch (error: unknown) {
     console.error('Login error:', error);
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { 
-          message: 'Validation Error', 
-          errors: error.errors.map(e => ({
-            field: e.path[0],
-            message: e.message
-          }))
-        }, 
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json(
-      { message: 'Internal server error' }, 
-      { status: 500 }
-    );
+    return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
   }
 }
 
-// Clean up old rate limiting entries periodically
+// ----------------------
+// Clean up rate limiting map periodically
+// ----------------------
 setInterval(() => {
   const now = Date.now();
   for (const [ip, attempt] of loginAttempts.entries()) {
