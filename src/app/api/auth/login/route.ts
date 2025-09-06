@@ -52,24 +52,25 @@ export async function POST(request: Request) {
     // ----------------------
     // Input validation
     // ----------------------
-    let email: string;
-    let password: string;
-    try {
-      const parsed = loginSchema.parse(body);
-      email = parsed.email;
-      password = parsed.password;
-    } catch (err) {
-      if (err instanceof ZodError) {
-        return NextResponse.json({
-          message: 'Validation Error',
-          errors: err.errors.map(e => ({
-            field: e.path[0],
-            message: e.message
-          }))
-        }, { status: 400 });
-      }
-      throw err; // Unexpected error
-    }
+   let email: string;
+let password: string;
+
+try {
+  const parsed = loginSchema.parse(body);
+  email = parsed.email;
+  password = parsed.password;
+} catch (err) {
+  if (err instanceof ZodError) {
+    return NextResponse.json({
+      message: 'Validation Error',
+      errors: err.issues.map(e => ({
+        field: e.path[0],
+        message: e.message
+      }))
+    }, { status: 400 });
+  }
+  throw err; // Unexpected error
+}
 
     // ----------------------
     // Find user

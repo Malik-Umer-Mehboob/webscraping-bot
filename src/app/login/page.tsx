@@ -51,10 +51,15 @@ const LoginPage: React.FC = () => {
         setError(data.message || 'Login failed');
       }
     } catch (err: unknown) {
-      setError(err.message || 'An unexpected error occurred');
-    } finally {
-      setLoading(false);
-    }
+  if (err instanceof Error) {
+    setError(err.message);
+  } else {
+    setError("An unexpected error occurred");
+  }
+} finally {
+  setLoading(false);
+}
+
   };
 
   return (

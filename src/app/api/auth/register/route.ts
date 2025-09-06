@@ -106,48 +106,60 @@ export async function POST(request: Request) {
 
     // Remove password from response
     const userResponse = {
-      id: newUser._id,
-      username: newUser.username,
-      email: newUser.email,
-      name: newUser.name,
-      createdAt: newUser.createdAt
-    };
+  id: newUser._id,
+  username: newUser.username,
+  email: newUser.email,
+  name: newUser.name,
+  createdAt: newUser.createdAt
+};
+
+return NextResponse.json({ 
+  message: 'User registered successfully',
+  user: userResponse
+}, { status: 201 });
+
+} catch (error: unknown) {
+  console.error('Registration error:', error);
+
+  if (error instanceof z.ZodError) {
+    const fieldErrors = error.issues.map(err => ({
+      field: err.path[0],
+      message: err.message
+    }));
 
     return NextResponse.json({ 
-      message: 'User registered successfully',
-      user: userResponse
-    }, { status: 201 });
+      message: 'Validation Error', 
+      errors: fieldErrors 
+    }, { status: 400 });
+  }
 
-  } catch (error: unknown) {
-    console.error('Registration error:', error);
+  // Handle duplicate key errors from MongoDB
+if (typeof error === "object" && error !== null && "code" in error) {
+  const errObj = error as { code?: number; keyValue?: Record<string, number> };
 
-    if (error instanceof z.ZodError) {
-      const fieldErrors = error.errors ? error.errors.map(err => ({
-        field: err.path[0],
-        message: err.message
-      })) : [];
-      
-      return NextResponse.json({ 
-        message: 'Validation Error', 
-        errors: fieldErrors 
-      }, { status: 400 });
-    }
-
-    // Handle duplicate key errors from MongoDB
-    if (error.code === 11000) {
-      const field = Object.keys(error.keyValue)[0];
-      return NextResponse.json({ 
+  if (errObj.code === 11000 && errObj.keyValue) {
+    const field = Object.keys(errObj.keyValue)[0];
+    return NextResponse.json(
+      {
         message: `User with this ${field} already exists`,
-        field
-      }, { status: 409 });
-    }
-
-    return NextResponse.json({ 
-      message: 'Internal server error',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    }, { status: 500 });
+        field,
+      },
+      { status: 409 }
+    );
   }
 }
+
+return NextResponse.json(
+  {
+    message: "Internal server error",
+    error:
+      process.env.NODE_ENV === "development" && error instanceof Error
+        ? error.message
+        : undefined,
+  },
+  { status: 500 }
+);
+}}
 
 // Optional: Add GET method to check username/email availability
 export async function GET(request: Request) {
@@ -164,7 +176,8 @@ export async function GET(request: Request) {
       }, { status: 400 });
     }
 
-    const query: unknown = {};
+    // ✅ Fix query type
+    const query: Record<string, string> = {};
     if (email) query.email = email.toLowerCase();
     if (username) query.username = username.toLowerCase();
 
@@ -176,10 +189,9 @@ export async function GET(request: Request) {
       field: email ? 'email' : 'username'
     }, { status: 200 });
 
-  } catch (error: unknown) {
+  } catch (error) {
     console.error('Availability check error:', error);
     return NextResponse.json({ 
       message: 'Internal server error' 
     }, { status: 500 });
-  }
-}
+  }}

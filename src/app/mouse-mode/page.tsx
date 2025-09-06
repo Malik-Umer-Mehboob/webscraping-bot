@@ -11,11 +11,11 @@ export default function MouseModePage() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [selectedData, setSelectedData] = useState<SelectedData[]>([]); // Initialize as empty array
+  const [selectedData, setSelectedData] = useState<SelectedData[]>([]);
   const [showNotification, setShowNotification] = useState(false);
   const [showResults, setShowResults] = useState(false);
-  const [sessionActive, setSessionActive] = useState(false); // Track if session is active
-  const [sessionId, setSessionId] = useState<string | null>(null); // Track session ID
+  const [sessionActive, setSessionActive] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (showNotification) {
@@ -29,13 +29,11 @@ export default function MouseModePage() {
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (sessionActive && sessionId) {
-      // Poll for updates every 500ms
       interval = setInterval(async () => {
         try {
           const res = await fetch(`/api/mouse-mode-update?sessionId=${sessionId}`);
           if (res.ok) {
             const { selectedElements } = await res.json();
-            console.log("Polled data:", selectedElements);
             setSelectedData(selectedElements);
             if (selectedElements.length > 0) {
               setShowResults(true);
@@ -52,11 +50,14 @@ export default function MouseModePage() {
 
   const handleMouseMode = async () => {
     if (!url) return alert("Please enter a URL to activate Mouse Mode");
-    if (sessionActive) return alert("Mouse Mode is already active. Select elements, press Enter to reset styles and update UI, and Escape to finalize in the browser.");
+    if (sessionActive) {
+      return alert(
+        "Mouse Mode is already active. Select elements, press Enter to reset styles, and Escape to finalize."
+      );
+    }
 
     setLoading(true);
     setError("");
-    setSessionActive(true);
 
     try {
       const res = await fetch("/api/mouse-mode", {
@@ -67,14 +68,14 @@ export default function MouseModePage() {
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(
-          errorData.error || `Mouse Mode failed with status: ${res.status}`
-        );
+        throw new Error(errorData.error || `Mouse Mode failed with status: ${res.status}`);
       }
+
       const result = await res.json();
-      console.log("Frontend received final data:", result.selectedElements);
       setSelectedData(result.selectedElements);
       setSessionId(result.sessionId);
+      setSessionActive(true); // ✅ ab sirf success pe active hoga
+
       if (result.selectedElements.length > 0) {
         setShowResults(true);
         setShowNotification(true);
@@ -88,24 +89,31 @@ export default function MouseModePage() {
       }
     } finally {
       setLoading(false);
-      setSessionActive(false);
     }
   };
 
-  function downloadCsv() {
-    if (selectedData && selectedData.length > 0) {
-      const csv = jsonToCsv(selectedData);
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", "mouse_mode_data.csv");
-      link.style.visibility = "hidden";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+ function downloadCsv() {
+  if (selectedData.length > 0) {
+    // ✅ convert to Record<string, unknown>
+    const csv = jsonToCsv(
+      selectedData.map((item) => ({
+        tag: item.tag,
+        text: item.text,
+      }))
+    );
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "mouse_mode_data.csv");
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
+}
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-100 to-white text-gray-800 font-sans">
@@ -116,7 +124,8 @@ export default function MouseModePage() {
               Mouse Mode Selector
             </h1>
             <p className="text-center text-gray-600 mb-8 text-lg">
-              Enter a URL, activate mouse mode, hover to highlight (red border), click to select elements (blue border), press Enter to reset styles and update UI, navigate to other pages, and press Escape to finalize the session.
+              Enter a URL, activate mouse mode, hover to highlight, click to select elements,
+              press Enter to reset styles, and Escape to finalize.
             </p>
             <div className="relative flex flex-col sm:flex-row items-center gap-4">
               <input
@@ -136,12 +145,10 @@ export default function MouseModePage() {
             </div>
           </div>
 
-          {showResults && selectedData && selectedData.length > 0 && (
+          {showResults && selectedData.length > 0 && (
             <div className="bg-white/60 backdrop-blur-xl shadow-lg rounded-2xl p-8 border border-white/20">
               <div className="flex justify-between items-center mb-6">
-                <h2 className="text-3xl font-bold text-gray-800">
-                  Selected Data
-                </h2>
+                <h2 className="text-3xl font-bold text-gray-800">Selected Data</h2>
                 <button
                   onClick={downloadCsv}
                   className="bg-green-500 text-white px-6 py-3 rounded-xl hover:bg-green-600 transition-all duration-300"

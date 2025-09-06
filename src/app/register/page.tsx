@@ -43,10 +43,15 @@ const RegisterPage: React.FC = () => {
         setError(data.message || 'Registration failed');
       }
     } catch (err: unknown) {
-      setError(err.message || 'An unexpected error occurred');
-    } finally {
-      setLoading(false); // Set loading to false after submission (success or error)
-    }
+  if (err instanceof Error) {
+    setError(err.message);
+  } else {
+    setError("An unexpected error occurred");
+  }
+} finally {
+  setLoading(false); // Set loading to false after submission (success or error)
+}
+
   };
 
   return (
