@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/utils/db';
 import User from '@/models/User';
 import { z } from 'zod';
-import bcrypt from 'bcrypt';
 
 // Enhanced validation schema
 const registerSchema = z.object({
@@ -93,6 +92,8 @@ export async function POST(request: Request) {
     }
 
     // Create new user
+
+    
     const newUser = new User({ 
       username: username.toLowerCase(),
       email: email.toLowerCase(),

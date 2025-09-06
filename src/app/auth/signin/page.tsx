@@ -2,7 +2,6 @@
 
 import { getProviders, signIn } from "next-auth/react";
 import { useState, useEffect } from "react";
-import { BuiltInProviderType } from "next-auth/providers";
 import { ClientSafeProvider } from "next-auth/react";
 
 interface Providers {
